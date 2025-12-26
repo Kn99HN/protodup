@@ -9,24 +9,41 @@ import (
 // Create a new reflection using struct with a schema
 type TestMessageReflection struct {
 	m map[int]interface{}
+	s map[int]ProtoType
 }
 
 type TestMessage struct {
 	r TestMessageReflection
 }
 
-func (t TestMessageReflection) Put(i int, v interface{}) bool {
-	t.m[i] = v
+func (t TestMessageReflection) Put(i int, v ProtoValue) bool {
+	t.m[i] = v.v
+	t.s[i] = v.t
 	return true
 }
 
-func (t TestMessageReflection) GetDescriptors() map[int]interface{} {
-	return t.m
+func (t TestMessageReflection) PutType(i int, v ProtoType) bool {
+	t.s[i] = v
+	return true
 }
 
-func (t TestMessageReflection) GetValue(i int) interface{} {
-	return t.m[i]
+
+func (t TestMessageReflection) GetDescriptors() map[int]ProtoValue {
+	merged_m := make(map[int]ProtoValue, 0)
+	for k,v := range(t.m) {
+		merged_m[k] = ProtoValue{v, t.s[k]}
+	}
+	return merged_m
 }
+
+func (t TestMessageReflection) GetValue(i int) ProtoValue {
+	return ProtoValue{ t.m[i], t.s[i] }
+}
+
+func (t TestMessageReflection) GetFieldType(i int) ProtoType {
+	return t.s[i]
+}
+
 
 func (t *TestMessage) GetReflection() Reflection {
 	return t.r
@@ -36,6 +53,7 @@ func initTestMessage() *TestMessage {
 	return &TestMessage{
 		TestMessageReflection{
 			m: map[int]interface{}{},
+			s: map[int]ProtoType{},
 		},
 	}
 }
@@ -43,8 +61,10 @@ func initTestMessage() *TestMessage {
 func TestReadSingleRecord(t *testing.T) {
 	data := []byte{0x80, 0x80, 0x80, 0x08, 0x01}
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
 	expected_tm := initTestMessage()
-	expected_tm.GetReflection().Put(1, 1)
+	value := ProtoValue { int32(1), Int32 }
+	expected_tm.GetReflection().Put(1, value)
 	r := ProtoReader{}
 	r.Read(data, actual_tm)
 
@@ -56,8 +76,10 @@ func TestReadSingleRecord(t *testing.T) {
 func TestReadSingleRecordMultiBytePayload(t *testing.T) {
 	data := []byte{0x80, 0x80, 0x80, 0x08, 0x81, 0x01}
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
 	expected_tm := initTestMessage()
-	expected_tm.GetReflection().Put(1, 129)
+	value := ProtoValue{int32(129), Int32}
+	expected_tm.GetReflection().Put(1, value)
 	r := ProtoReader{}
 	r.Read(data, actual_tm)
 
@@ -69,9 +91,13 @@ func TestReadSingleRecordMultiBytePayload(t *testing.T) {
 func TestReadMultipleRecords(t *testing.T) {
 	data := []byte{0x08, 0x81, 0x01, 0x10, 0x01}
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
+	actual_tm.GetReflection().PutType(2, Int32)
 	expected_tm := initTestMessage()
-	expected_tm.GetReflection().Put(1, 129)
-	expected_tm.GetReflection().Put(2, 1)
+	value_1 := ProtoValue{int32(129), Int32}
+	value_2 := ProtoValue{int32(1), Int32}
+	expected_tm.GetReflection().Put(1, value_1)
+	expected_tm.GetReflection().Put(2, value_2)
 	r := ProtoReader{}
 	r.Read(data, actual_tm)
 
@@ -83,7 +109,8 @@ func TestReadMultipleRecords(t *testing.T) {
 func TestWriteSingleRecord(t *testing.T) {
 	expected_data := []byte{0x08, 0x01}
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,1)
+	value_1 := ProtoValue{int32(1), Int32}
+	tm.GetReflection().Put(1, value_1)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -97,8 +124,9 @@ func TestWriteMultipleRecords(t *testing.T) {
 		0x08, 0x01,
 		0x10, 0x01 }
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,1)
-	tm.GetReflection().Put(2,1)
+	value := ProtoValue{int32(1), Int32}
+	tm.GetReflection().Put(1,value)
+	tm.GetReflection().Put(2,value)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -112,8 +140,9 @@ func TestWriteThenReadSingleRecord(t *testing.T) {
 		0x08, 0x01,
 		0x10, 0x01 }
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,1)
-	tm.GetReflection().Put(2,1)
+	value := ProtoValue{int32(1), Int32}
+	tm.GetReflection().Put(1,value)
+	tm.GetReflection().Put(2,value)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -122,6 +151,8 @@ func TestWriteThenReadSingleRecord(t *testing.T) {
 	}
 
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
+	actual_tm.GetReflection().PutType(2, Int32)
 	r := ProtoReader{}
 	r.Read(actual_data, actual_tm)
 
@@ -138,7 +169,8 @@ func TestWriteLenRecord(t *testing.T) {
 		0x69, 0x6e, 0x67 }
 
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,"testing")
+	value := ProtoValue{ string("testing"), String}
+	tm.GetReflection().Put(1, value)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -155,7 +187,8 @@ func TestReadLenRecord(t *testing.T) {
 		0x69, 0x6e, 0x67 }
 	actual_tm := initTestMessage()
 	expected_tm := initTestMessage()
-	expected_tm.GetReflection().Put(1,"testing")
+	value := ProtoValue{"testing", String}
+	expected_tm.GetReflection().Put(1,value)
 	r := ProtoReader{}
 	r.Read(actual_data, actual_tm)
 
@@ -173,8 +206,10 @@ func TestWriteMultipleTypesRecord(t *testing.T) {
 		0x10, 0x01 }
 
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,"testing")
-	tm.GetReflection().Put(2, 1)
+	value_1 := ProtoValue{"testing", String}
+	tm.GetReflection().Put(1,value_1)
+	value_2 := ProtoValue{int32(1), Int32}
+	tm.GetReflection().Put(2, value_2)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -191,9 +226,13 @@ func TestReadMultipleTypesRecord(t *testing.T) {
 		0x69, 0x6e, 0x67,
 		0x10, 0x01 }
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, String)
+	actual_tm.GetReflection().PutType(2, Int32)
 	expected_tm := initTestMessage()
-	expected_tm.GetReflection().Put(1,"testing")
-	expected_tm.GetReflection().Put(2, 1)
+	value_1 := ProtoValue{"testing", String}
+	expected_tm.GetReflection().Put(1,value_1)
+	value_2 := ProtoValue{int32(1), Int32}
+	expected_tm.GetReflection().Put(2, value_2)
 	r := ProtoReader{}
 	r.Read(actual_data, actual_tm)
 
@@ -210,8 +249,10 @@ func TestReadWriteMultipleTypesRecord(t *testing.T) {
 		0x69, 0x6e, 0x67,
 		0x10, 0x01 }
 	tm := initTestMessage()
-	tm.GetReflection().Put(1,"testing")
-	tm.GetReflection().Put(2, 1)
+	value_1 := ProtoValue{"testing", String}
+	tm.GetReflection().Put(1, value_1)
+	value_2 := ProtoValue{int32(1), Int32}
+	tm.GetReflection().Put(2, value_2)
 	w := ProtoWriter{}
 	actual_data := w.Write(tm)
 
@@ -220,6 +261,8 @@ func TestReadWriteMultipleTypesRecord(t *testing.T) {
 	}
 
 	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, String)
+	actual_tm.GetReflection().PutType(2, Int32)
 	r := ProtoReader{}
 	r.Read(actual_data, actual_tm)
 

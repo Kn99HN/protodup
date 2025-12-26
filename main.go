@@ -42,6 +42,7 @@ type Message interface {
 
 type Reflection interface {
 	Put(i int, v ProtoValue) bool
+	PutType(i int, v ProtoType) bool
 	GetDescriptors() map[int]ProtoValue
 	GetValue(i int) ProtoValue
 	GetFieldType(i int) ProtoType
@@ -110,10 +111,15 @@ func (w ProtoWriter) Write(m Message) []byte {
 func ToTagType(v ProtoValue) (byte, error) {
 	switch v.t {
 		case Sint32:
+			fallthrough
 		case Sint64:
+			fallthrough
 		case Uint32:
+			fallthrough
 		case Uint64:
+			fallthrough
 		case Int32:
+			fallthrough
 		case Int64:
 			return 0, nil
 		case String:
@@ -122,8 +128,8 @@ func ToTagType(v ProtoValue) (byte, error) {
 	return 0, errors.New("Tag Type is not supported")
 }
 
-func ToLen(v interface{}) ([]byte, error) {
-	s, ok := v.(string)
+func ToLen(v ProtoValue) ([]byte, error) {
+	s, ok := v.v.(string)
 	if !ok { return nil, errors.New("Payload has mismatched type. Expected string") }
 	
 	record_length := len(s)
