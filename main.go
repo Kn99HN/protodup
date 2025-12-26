@@ -9,6 +9,17 @@ import (
 
 type WireType int
 type ParseOp int
+type ProtoType int
+
+const (
+	String ProtoType = iota
+	Uint32
+	Uint64
+	Sint32
+	Sint64
+	Int32
+	Int64
+)
 
 const (
 	VarInt WireType = iota
@@ -30,9 +41,10 @@ type Message interface {
 }
 
 type Reflection interface {
-	Put(i int, v interface{}) bool
-	GetDescriptors() map[int]interface{}
-	GetValue(i int) interface{}
+	Put(i int, v ProtoValue) bool
+	GetDescriptors() map[int]ProtoValue
+	GetValue(i int) ProtoValue
+	GetFieldType(i int) ProtoType
 }
 
 type Reader interface {
@@ -46,6 +58,11 @@ type Writer interface {
 }
 
 type ProtoWriter struct {}
+
+type ProtoValue struct {
+	v interface{}
+	t ProtoType
+}
 
 func (w ProtoWriter) Write(m Message) []byte {
 	reflection := m.GetReflection()
@@ -90,11 +107,16 @@ func (w ProtoWriter) Write(m Message) []byte {
 	return buf
 }
 
-func ToTagType(v interface{}) (byte, error) {
-	switch v.(type) {
-		case int:
+func ToTagType(v ProtoValue) (byte, error) {
+	switch v.t {
+		case Sint32:
+		case Sint64:
+		case Uint32:
+		case Uint64:
+		case Int32:
+		case Int64:
 			return 0, nil
-		case string:
+		case String:
 			return 1, nil
 	}
 	return 0, errors.New("Tag Type is not supported")
@@ -119,14 +141,46 @@ func ToLen(v interface{}) ([]byte, error) {
 	return buf, nil
 }
 
-func ToVarIntsGeneric(v interface{}) ([]byte, error) {
-	i, ok := v.(int)
-	if !ok { return nil, errors.New("Payload has mismatched type. Expected int") }
-	return ToVarInts(i), nil
+func ToVarIntsGeneric(v ProtoValue) ([]byte, error) {
+	switch v.t {
+		case Uint32:
+			i, ok := v.v.(uint32)
+			if !ok { return nil,
+			errors.New("Payload has mismatched type. Expected uint32") }
+			return ToVarInts(i), nil
+		case Uint64:
+			i, ok := v.v.(uint64)
+			if !ok { return nil,
+				errors.New("Payload has mismatched type. Expected uint32") }
+			return ToVarInts(i), nil
+		case Int32:
+			i, ok := v.v.(int32)
+			if !ok { return nil, 
+				errors.New("Payload has mismatched type. Expected uint32") }
+			return ToVarInts(i), nil
+		case Int64:
+			i, ok := v.v.(int64)
+			if !ok { return nil, 
+			errors.New("Payload has mismatched type. Expected uint32") }
+			return ToVarInts(i), nil
+		case Sint32:
+			i, ok := v.v.(int32)
+			if !ok { return nil, 
+				errors.New("Payload has mismatched type. Expected uint32") }
+			i = (i << 1) ^ (i >> 31)
+			return ToVarInts(i), nil
+		case Sint64:
+			i, ok := v.v.(int64)
+			if !ok { return nil, 
+				errors.New("Payload has mismatched type. Expected uint32") }
+			i = (i << 1) ^ (i >> 63)
+			return ToVarInts(i), nil
+	}
+	return nil,
+		errors.New("Payload type does not match any of the supported types")
 }
 
-
-func ToVarInts(i int) []byte {
+func ToVarInts [T ~uint32| ~uint64 | ~int32 | ~int64 | ~int] (i T) []byte {
 	buf := make([]byte, 0)
 	for i > 0 {
 		b := byte(i & 0x7F)
@@ -151,13 +205,32 @@ func (r ProtoReader) Read(buffer []byte, m Message) {
 		payload_wire_type := globalMap[int(wire_type)]
 		switch payload_wire_type {
 			case VarInt:
+				int_type := reflection.GetFieldType(field_number)
 				val, new_index := parseVarInts(buffer, next_index)
 				next_index = new_index
-				reflection.Put(field_number, val)
+				var value ProtoValue
+				switch int_type {
+					case Uint32:
+						value = ProtoValue{ uint32(val), int_type }
+					case Uint64:
+						value = ProtoValue { uint64(val), int_type }
+					case Int32:
+						value = ProtoValue { int32(val), int_type }
+					case Int64:
+						value = ProtoValue { int64(val), int_type }
+					case Sint32:
+						parsed_val := int32(val)
+						value = ProtoValue { 
+						(parsed_val >> 1) ^ -(parsed_val & 1) , int_type }
+					case Sint64:
+						parsed_val := int64(val)
+						value = ProtoValue { (parsed_val >> 1) ^ -(parsed_val & 1), int_type }
+				}
+				reflection.Put(field_number, value)
 			case LEN:
 				val, new_index := parseLen(buffer, next_index)
 				next_index = new_index
-				reflection.Put(field_number, val)
+				reflection.Put(field_number, ProtoValue{ val, String } )
 		}
 	}
 }
