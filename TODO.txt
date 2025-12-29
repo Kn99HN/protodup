@@ -1,3 +1,1 @@
-- Implmenet feature to support unsigned integer
-- Implement feature to support string
 - Write a blog about the features that this supports

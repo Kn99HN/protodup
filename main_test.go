@@ -271,3 +271,106 @@ func TestReadWriteMultipleTypesRecord(t *testing.T) {
 	}
 }
 
+func TestWriteThenReadNegativeSignedIntegerRecord(t *testing.T) {
+	expected_data := []byte{
+		0x08, 0x01 }
+
+	tm := initTestMessage()
+	value := ProtoValue{ int32(-1), Sint32}
+	tm.GetReflection().Put(1, value)
+	w := ProtoWriter{}
+	actual_data := w.Write(tm)
+
+	if !reflect.DeepEqual(expected_data, actual_data) {
+		t.Errorf("Expected %v. Actual %v", expected_data, actual_data)
+	}
+
+	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Sint32)
+	r := ProtoReader{}
+	r.Read(actual_data, actual_tm)
+
+	if !reflect.DeepEqual(tm, actual_tm){
+		t.Errorf("Expected %v. Actual %v", tm, actual_tm)
+	}
+
+}
+
+func TestWriteThenReadSignedIntegerRecord(t *testing.T) {
+	expected_data := []byte{
+		0x08, 
+		0x8f, 0xff, 0xff, 0xff, 0x7f,
+		}
+
+	tm := initTestMessage()
+	value := ProtoValue{ int32(-1), Int32}
+	tm.GetReflection().Put(1, value)
+	w := ProtoWriter{}
+	actual_data := w.Write(tm)
+
+	if !reflect.DeepEqual(expected_data, actual_data) {
+		t.Errorf("Expected %v. Actual %v", expected_data, actual_data)
+	}
+
+	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
+	r := ProtoReader{}
+	r.Read(actual_data, actual_tm)
+
+	if !reflect.DeepEqual(tm, actual_tm){
+		t.Errorf("Expected %v. Actual %v", tm, actual_tm)
+	}
+
+}
+
+func TestWriteZeroInteger(t *testing.T) {
+	expected_data := []byte{
+		0x08, 0x00,
+		}
+
+	tm := initTestMessage()
+	value := ProtoValue{ int32(0), Int32}
+	tm.GetReflection().Put(1, value)
+	w := ProtoWriter{}
+	actual_data := w.Write(tm)
+
+	if !reflect.DeepEqual(expected_data, actual_data) {
+		t.Errorf("Expected %v. Actual %v", expected_data, actual_data)
+	}
+
+	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Int32)
+	r := ProtoReader{}
+	r.Read(actual_data, actual_tm)
+
+	if !reflect.DeepEqual(tm, actual_tm){
+		t.Errorf("Expected %v. Actual %v", tm, actual_tm)
+	}
+}
+
+func TestWriteEmptyString(t *testing.T) {
+	expected_data := []byte{
+		0x09, 0x00,
+		}
+
+	tm := initTestMessage()
+	value := ProtoValue{ "", String}
+	tm.GetReflection().Put(1, value)
+	w := ProtoWriter{}
+	actual_data := w.Write(tm)
+
+	if !reflect.DeepEqual(expected_data, actual_data) {
+		t.Errorf("Expected %v. Actual %v", expected_data, actual_data)
+	}
+
+	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, String)
+	r := ProtoReader{}
+	r.Read(actual_data, actual_tm)
+
+	if !reflect.DeepEqual(tm, actual_tm){
+		t.Errorf("Expected %v. Actual %v", tm, actual_tm)
+	}
+}
+
+

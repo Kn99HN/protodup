@@ -131,6 +131,9 @@ func ToTagType(v ProtoValue) (byte, error) {
 func ToLen(v ProtoValue) ([]byte, error) {
 	s, ok := v.v.(string)
 	if !ok { return nil, errors.New("Payload has mismatched type. Expected string") }
+	if s == "" {
+		return []byte{0}, nil
+	}
 	
 	record_length := len(s)
 	length := ToVarInts(record_length)
@@ -161,14 +164,16 @@ func ToVarIntsGeneric(v ProtoValue) ([]byte, error) {
 			return ToVarInts(i), nil
 		case Int32:
 			i, ok := v.v.(int32)
+			new_integer := uint32(i)
 			if !ok { return nil, 
 				errors.New("Payload has mismatched type. Expected uint32") }
-			return ToVarInts(i), nil
+			return ToVarInts(new_integer), nil
 		case Int64:
 			i, ok := v.v.(int64)
+			new_integer := uint64(i)
 			if !ok { return nil, 
 			errors.New("Payload has mismatched type. Expected uint32") }
-			return ToVarInts(i), nil
+			return ToVarInts(new_integer), nil
 		case Sint32:
 			i, ok := v.v.(int32)
 			if !ok { return nil, 
@@ -188,9 +193,12 @@ func ToVarIntsGeneric(v ProtoValue) ([]byte, error) {
 
 func ToVarInts [T ~uint32| ~uint64 | ~int32 | ~int64 | ~int] (i T) []byte {
 	buf := make([]byte, 0)
-	for i > 0 {
+	if i == 0 {
+		return []byte{0}
+	}
+	for i != 0 {
 		b := byte(i & 0x7F)
-		if len(buf) > 1 {
+		if len(buf) >= 1 {
 			b = b | 0x80
 		}
 		buf = append([]byte{b}, buf...)
@@ -226,7 +234,7 @@ func (r ProtoReader) Read(buffer []byte, m Message) {
 						value = ProtoValue { int64(val), int_type }
 					case Sint32:
 						parsed_val := int32(val)
-						value = ProtoValue { 
+						value = ProtoValue {
 						(parsed_val >> 1) ^ -(parsed_val & 1) , int_type }
 					case Sint64:
 						parsed_val := int64(val)
@@ -256,7 +264,7 @@ func parseVarInts(buffer []byte, starting_index int) (int, int) {
 			panic("Reached the end of byte stream but there are still more bytes to decode")
 		}
 		starting_index += 1
-		val = int(byte(val) | (b & 0x7F))
+		val = val | int(b & 0x7F)
 	}
 	return val, starting_index
 }
