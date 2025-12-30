@@ -375,8 +375,7 @@ func TestWriteEmptyString(t *testing.T) {
 }
 
 func TestWriteThenReadNegativeMinSignedIntegerRecord(t *testing.T) {
-	expected_data := []byte{
-		0x08, 0x01 }
+	expected_data := []byte{ 0x08, 0x8f, 0xff, 0xff, 0xff, 0x7f, }
 
 	tm := initTestMessage()
 	value := ProtoValue{ int32(math.MinInt32), Sint32}

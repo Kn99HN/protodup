@@ -179,13 +179,15 @@ func ToVarIntsGeneric(v ProtoValue) ([]byte, error) {
 			if !ok { return nil, 
 				errors.New("Payload has mismatched type. Expected uint32") }
 			i = (i << 1) ^ (i >> 31)
-			return ToVarInts(i), nil
+			new_integer := uint32(i)
+			return ToVarInts(new_integer), nil
 		case Sint64:
 			i, ok := v.v.(int64)
-			if !ok { return nil, 
+			if !ok { return nil,
 				errors.New("Payload has mismatched type. Expected uint32") }
 			i = (i << 1) ^ (i >> 63)
-			return ToVarInts(i), nil
+			new_integer := uint64(i)
+			return ToVarInts(new_integer), nil
 	}
 	return nil,
 		errors.New("Payload type does not match any of the supported types")
@@ -233,12 +235,13 @@ func (r ProtoReader) Read(buffer []byte, m Message) {
 					case Int64:
 						value = ProtoValue { int64(val), int_type }
 					case Sint32:
-						parsed_val := int32(val)
-						value = ProtoValue {
-						(parsed_val >> 1) ^ -(parsed_val & 1) , int_type }
+						parsed_val := uint32(val)
+						converted_val := int32((parsed_val >> 1) ^ -(parsed_val & 1))
+						value = ProtoValue { converted_val , int_type }
 					case Sint64:
 						parsed_val := int64(val)
-						value = ProtoValue { (parsed_val >> 1) ^ -(parsed_val & 1), int_type }
+						converted_val := int64((parsed_val >> 1) ^ -(parsed_val & 1))
+						value = ProtoValue { converted_val, int_type }
 				}
 				reflection.Put(field_number, value)
 			case LEN:

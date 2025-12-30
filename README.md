@@ -67,3 +67,13 @@ For deserialzing, the high level steps are:
 combination of the field number and the tag value.
 2. For each field, parse the bytes and create the structured data.
 
+Things to note is that, int32, int64, intN is various ways of telling the
+compiler to interpret the bits. It doesn't change the binary representation of
+the value itself. One bug that we ran into is zig-zag encoding on Min integer
+value. Carrying out the bit shift with type int32, the value would be -1. Given
+that all the bits are 1 and we only right shift to encode the value as varints,
+it would cause infinite loop. Therefore, we would need to cast value to uint32
+before encoding to varints. When right shifting the integer, int32 would cause
+the msb to preserve the signed bit, which would make it 0xff forever. Casting to
+uint32 would make it insert a 0, leading to eventual loop termination.
+
