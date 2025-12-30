@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 	"reflect"
+	"math"
 )
 
 
@@ -373,4 +374,28 @@ func TestWriteEmptyString(t *testing.T) {
 	}
 }
 
+func TestWriteThenReadNegativeMinSignedIntegerRecord(t *testing.T) {
+	expected_data := []byte{
+		0x08, 0x01 }
+
+	tm := initTestMessage()
+	value := ProtoValue{ int32(math.MinInt32), Sint32}
+	tm.GetReflection().Put(1, value)
+	w := ProtoWriter{}
+	actual_data := w.Write(tm)
+
+	if !reflect.DeepEqual(expected_data, actual_data) {
+		t.Errorf("Expected %v. Actual %v", expected_data, actual_data)
+	}
+
+	actual_tm := initTestMessage()
+	actual_tm.GetReflection().PutType(1, Sint32)
+	r := ProtoReader{}
+	r.Read(actual_data, actual_tm)
+
+	if !reflect.DeepEqual(tm, actual_tm){
+		t.Errorf("Expected %v. Actual %v", tm, actual_tm)
+	}
+
+}
 
