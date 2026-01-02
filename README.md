@@ -1,9 +1,9 @@
 # protodup
 
-Protobuf is a great system for serialzing structured data. Here, in protodup,
-I attempt to implement a simple dup of protobuf. It's very simple. Serialzing
-and deserialzing is basically translate a schema into bytes and from bytes into
-the structured data.
+Protobuf is a great system for defining structured data for (de)serialization. 
+`protodup` is a barebone implementation of protobuf without code generation for
+schema. Serialzing and deserialzing are processes of translating a schema into bytes 
+and vice versa.
 
 In protobuf, users would define a schema for their data
 
@@ -14,26 +14,35 @@ message Test {
 ```
 
 Each field is tagged with an integer. It's very important that we don't reuse
-integer for different fields. Interanlly, the way schema works is generating
-a map between an index to a a field with type information. To represent
-different type, protobuf uses the following encoding
+integer for different fields. If I have to guess, internally, the code would use
+the integer as unique identifier for the field. Hence, it does not allow reusing of
+integer (without special keyword).
 
-varints -> int8, int16, ....
-record -> string
+Protodup supports the following data types: 
+
+- `uint32, uint64, int32, int64, sint32, sint64`
+- `string`
+
+To encode the above types, protobuf uses `varints` and `record`
+
+| Encoded Type | protobuf type |
+| -------------|---------------|
+|    varint    | uint32, uint64, int32, int64, sint32, sint64 |
+|    record    | string |
 
 
-varints is variable ints, which use multiple bytes to represent an integer. It
-uses the first bit of each byte as an indicator if there are more to parse.
-Imagine `23` in binary would be 0001 0111. This would be varint of size 1. The
+`varint` is variable integer, which uses multiple bytes to represent an integer. 
+The first bit of each byte for `varint` type indicates continuation. If set, we
+need to keep parsing the bytes.
+
+For example, `23` in binary would be `00010111`. This would be varint of size 1. The
 leading value is 0 because there is only a single byte.
 
-257 is 100000001. This wouldn't fit in a single varint byte. Therefore, we would 
-need 2 bytes. To represent the value, we will need:
+`257` is `00000001 00000001`. This wouldn't fit in a single `varint` byte. Therefore, 
+we would need 2 bytes. To encode the value, we have `10000001 00000001`.
 
-`1000 0001 0000 0001`
-first bit tells us that we need to parse the next byte to get the full integer.
-Once we parse everything, we would concatenate the bits together to form the 
-field value.
+The most significant bit is `1`, indicating there we need to parse the next
+byte. Grabbing 7 bits of each byte, we have `00000001 00000001`.
 
 Given there are unsigned integer and signed integer, we have different schemes
 for encoding it as bits. Unsigned integer is relatively straightforward. We just
@@ -76,4 +85,9 @@ it would cause infinite loop. Therefore, we would need to cast value to uint32
 before encoding to varints. When right shifting the integer, int32 would cause
 the msb to preserve the signed bit, which would make it 0xff forever. Casting to
 uint32 would make it insert a 0, leading to eventual loop termination.
+
+Serializing string is more straightforward. Each character is written as a utf-8
+encoded byte. Before the string is encoded, we write out the length of the
+record as varints. Deserializing ends up parsing the record length and read X
+bytes for the string itself.
 
